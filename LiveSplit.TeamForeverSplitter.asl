@@ -1,7 +1,12 @@
 // Team Forever splitter
 // Coding: Jujstme
-// Version 2.0.1 (Jan 5th, 2022)
+// Version 2.0.2 (Jan 8th, 2022)
 // S1F and S2A speedrunning discord: https://discord.com/invite/9JCcpDsSyA
+
+/*
+   Changelog
+   - v.2.0.2: Fixed livesplit autostarting when selecting the options voice menu in S1F
+*/
 
 state ("SonicForever") {}
 state ("Sonic2Absolute") {}
@@ -161,7 +166,7 @@ start
     switch ((byte)vars.game)
     {
         case 1:
-            current.RunStartedSaveFile = vars.watchers["State"].Changed && vars.watchers["State"].Current == 2;
+            current.RunStartedSaveFile = vars.watchers["State"].Changed && vars.watchers["State"].Current == 2 && vars.watchers["ZoneIndicator"].Current == vars.ZoneIndicator.SaveSelect;
             current.RunStartedNoSaveFile = vars.watchers["State"].Old == 6 && vars.watchers["State"].Current == 7;
             current.RunStartedNGP = vars.watchers["State"].Old == 8 && vars.watchers["State"].Current == 9;
             break;
