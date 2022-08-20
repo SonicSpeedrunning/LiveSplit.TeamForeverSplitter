@@ -135,7 +135,7 @@ init
         case true:
             version += " (64bit)";
             // Only Sonic 1 Forever has a 64bit exe
-            ptr = scanner.Scan(new SigScanTarget(4, "41 8B 8C 8B ???????? 49 03 CB FF E1 8B") { OnFound = (p, s, addr) => modules.First().BaseAddress + p.ReadValue<int>(addr) });
+            ptr = scanner.Scan(new SigScanTarget(16, "81 F9 ???????? 0F 87 ???????? 41 8B 8C") { OnFound = (p, s, addr) => modules.First().BaseAddress + p.ReadValue<int>(addr) });
             checkptr();
             vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123,  0x2,     0,  false)) { Name = "LevelID" });
 
