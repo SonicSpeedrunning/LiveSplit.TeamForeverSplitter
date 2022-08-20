@@ -114,7 +114,7 @@ init
     {
         case false:
             version += " (32bit)";
-            ptr = scanner.Scan(new SigScanTarget(3, "FF 24 85 ???????? A1 ???????? 89") { OnFound = (p, s, addr) => (IntPtr)p.ReadValue<int>(addr) });
+            ptr = scanner.Scan(new SigScanTarget(14, "3D ???????? 0F 87 ???????? FF 24 85 ???????? A1") { OnFound = (p, s, addr) => (IntPtr)p.ReadValue<int>(addr) });
             checkptr();
             vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  (vars.game == 1 ? 73 : 89),  0x8, 0x9D8,  true)) { Name = "State"   });
             vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123,  0x1,     0,  true)) { Name = "LevelID" });
