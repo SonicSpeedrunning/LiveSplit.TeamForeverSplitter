@@ -1,10 +1,11 @@
 // Team Forever splitter
 // Coding: Jujstme
-// Version 2.0.3 (Jul 7th, 2022)
+// Version 2.0.4 (Aug 20th, 2022)
 // S1F and S2A speedrunning discord: https://discord.com/invite/9JCcpDsSyA
 
 /*
    Changelog
+   - v.2.0.4: Updated sigscans
    - v.2.0.3: Added new sigscanning method compatible with all Sonic decompilations. This means added support for S1F v1.4.2 and, hopefully, the last release of the autosplitter
    - v.2.0.2: Fixed livesplit autostarting when selecting the options voice menu in S1F
 */
@@ -92,22 +93,24 @@ init
 
     // Inizialize the main watchers and the variables we need for sigscanning
     vars.watchers = new MemoryWatcherList();
-    var ptr = IntPtr.Zero;
+    IntPtr ptr = IntPtr.Zero, lea = IntPtr.Zero;
     var scanner = new SignatureScanner(game, modules.First().BaseAddress, modules.First().ModuleMemorySize);
-    Action checkptr = () => { if (ptr == IntPtr.Zero) throw new Exception("Sigscanning failed!"); };
+    Action<IntPtr> checkptr = (IntPtr addr) => { if (addr == IntPtr.Zero) throw new Exception("Sigscanning failed!"); };
 
     // Custom black magic function made for sigscanning in sonic decomps
-    Func<int, int, int, bool, IntPtr> pointerPath = (offset1, offset2, offset3, absolute) =>
+    Func<int, int, int, bool, IntPtr> pointerPath = (int offset1, int offset2, int offset3, bool absolute) =>
     {
-        // In 32bit games finding the path is very easy. Absolute is not needed in this case.
-        if (!game.Is64Bit())
-            return (IntPtr)new DeepPointer(ptr + offset1, offset2).Deref<int>(game) + offset3;
-        // In 64bit executables it needs a little of work. Absolute will tell us if it's an absolute offset or if it's relative to MainModule.BaseAddress
-        var tempOffset = modules.First().BaseAddress + game.ReadValue<int>(ptr + offset1) + offset2;
-        if (absolute)
-            return modules.First().BaseAddress + game.ReadValue<int>(tempOffset) + offset3;
-        else
-            return tempOffset + 0x4 + game.ReadValue<int>(tempOffset) + offset3;
+        switch (game.Is64Bit())
+        {
+            case true:
+                if (offset1 == 0) return lea + offset3;
+                int tempOffset = game.ReadValue<int>(ptr + offset1);
+                IntPtr tempOffset2 = modules.First().BaseAddress + tempOffset + offset2;
+                if (absolute) return modules.First().BaseAddress + game.ReadValue<int>(tempOffset2) + offset3;
+                else return tempOffset2 + 0x4 + game.ReadValue<int>(tempOffset2) + offset3;
+            default:
+                return (IntPtr)new DeepPointer(ptr + offset1, offset2).Deref<int>(game) + offset3;
+        }
     };
 
     switch (game.Is64Bit())
@@ -115,20 +118,20 @@ init
         case false:
             version += " (32bit)";
             ptr = scanner.Scan(new SigScanTarget(14, "3D ???????? 0F 87 ???????? FF 24 85 ???????? A1") { OnFound = (p, s, addr) => (IntPtr)p.ReadValue<int>(addr) });
-            checkptr();
-            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  (vars.game == 1 ? 73 : 89),  0x8, 0x9D8,  true)) { Name = "State"   });
-            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123,  0x1,     0,  true)) { Name = "LevelID" });
+            checkptr(ptr);
+            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  (vars.game == 1 ? 73 : 89), 8, 0x9D8,  true)) { Name = "State"   });
+            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123, 1,     0,  true)) { Name = "LevelID" });
             if (vars.game == 2)
             {
-                vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  30,  0x8, 0x9D8,  true)) { Name = "StartIndicator"           });
-                vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  91,  0x8, 0x9D8,  true)) { Name = "ZoneSelectOnGameComplete" });
+                vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  30, 8, 0x9D8,  true)) { Name = "StartIndicator"           });
+                vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 *  91, 8, 0x9D8,  true)) { Name = "ZoneSelectOnGameComplete" });
             }
 
             ptr = scanner.Scan(new SigScanTarget(7,
                 "69 F8 ????????",   // imul edi,eax,000000C1
                 "B8 ????????")      // mov eax,SonicForever.exe+48DC990
             { OnFound = (p, s, addr) => (IntPtr)p.ReadValue<int>(addr) });
-            checkptr();
+            checkptr(ptr);
             vars.watchers.Add(new MemoryWatcher<uint>(ptr) { Name = "ZoneIndicator" });
             break;
 
@@ -136,22 +139,18 @@ init
             version += " (64bit)";
             // Only Sonic 1 Forever has a 64bit exe
             ptr = scanner.Scan(new SigScanTarget(16, "81 F9 ???????? 0F 87 ???????? 41 8B 8C") { OnFound = (p, s, addr) => modules.First().BaseAddress + p.ReadValue<int>(addr) });
-            checkptr();
-            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123,  0x2,     0,  false)) { Name = "LevelID" });
-
-            ptr = scanner.Scan(new SigScanTarget(3,
-                "48 8D 2D ????????",    // lea rbp,[SonicForever.exe+37C730]
-                "FF C7")                // inc edi
-            { OnFound = (p, s, addr) => addr + 0x4 + p.ReadValue<int>(addr) });
-            checkptr();
-            vars.watchers.Add(new MemoryWatcher<byte>(ptr + 0x9D8 + 0x14) { Name = "State" });
+            checkptr(ptr);
+            lea = scanner.Scan(new SigScanTarget(3, "48 8D 05 ???????? 49 63 F8 4C") { OnFound = (p, s, addr) => addr + 0x4 + p.ReadValue<int>(addr) });
+            checkptr(lea);
+            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 0,   0, 0x9EC, false)) { Name = "State" });
+            vars.watchers.Add(new MemoryWatcher<byte>(pointerPath(0x4 * 123, 2,     0, false)) { Name = "LevelID" });
 
             ptr = scanner.Scan(new SigScanTarget(2,
                 "C6 05 ???????? ??",    // mov byte ptr [SonicForever.exe+5EC0B0],00  <---
                 "E9 ????????",          // jmp SonicForever.exe+2B0C0
                 "48 8D 0D ????????")    // lea rcx,[SonicForever.exe+8B580]
             { OnFound = (p, s, addr) => addr + 0x5 + p.ReadValue<int>(addr) });
-            checkptr();
+            checkptr(ptr);
             vars.watchers.Add(new MemoryWatcher<uint>(ptr) { Name = "ZoneIndicator" });
             break;
     }
